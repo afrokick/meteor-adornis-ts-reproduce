@@ -1,0 +1,180 @@
+version: 2
+
+jobs:
+  buildDev:
+    docker:
+      - image: asosnovskiy/docker-meteor:latest
+    resource_class: medium+
+    working_directory: ~/itgenio
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore NPM Cache
+          key: npm-cache2-{{ checksum "package.json" }}
+      - restore_cache:
+          name: Restore Meteor Package Cache
+          key: packages-cache2-{{ checksum ".meteor/versions" }}
+      - run:
+          name: Install npm dependencies
+          command: meteor npm install
+      - save_cache:
+          name: Save NPM Cache
+          key: npm-cache2-{{ checksum "package.json" }}
+          paths:
+            - './node_modules'
+            - '~/.npm'
+            - '~/.cache'
+      - run:
+          name: Print versions
+          command: meteor --version && meteor node -v && meteor npm -v
+      - run:
+          name: Run Linter
+          command: meteor npm run lint
+      - run:
+          name: Run Format checker
+          command: meteor npm run check-format
+      - run:
+          name: Run Test
+          command: meteor npm test
+          environment:
+            TOOL_NODE_FLAGS: --max-old-space-size=4096
+      - save_cache:
+          key: packages-cache2-{{ checksum ".meteor/versions" }}
+          paths:
+            - './.meteor/local/build'
+            - './.meteor/local/bundler-cache'
+            - './.meteor/local/isopacks'
+            - './.meteor/local/plugin-cache'
+      - run:
+          name: Create bundle
+          shell: /bin/bash
+          command: |
+            ./deploy/build.sh dev
+          TOOL_NODE_FLAGS: --max-old-space-size=4096
+      - add_ssh_keys:
+          fingerprints:
+            - 'de:52:cb:f5:8f:ed:25:a0:30:c9:6a:e9:0f:ca:ae:8b'
+      - run:
+          name: Keyscan
+          command: ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
+      - run:
+          name: Deploy build
+          shell: /bin/bash
+          command: |
+            ./deploy/deploy.sh -host $SSH_USER@$SSH_HOST -env dev
+  testDev:
+    docker:
+      - image: asosnovskiy/docker-meteor:latest
+    resource_class: medium+
+    working_directory: ~/itgenio
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore NPM Cache
+          key: npm-cache2-{{ checksum "package.json" }}
+      - restore_cache:
+          name: Restore Meteor Package Cache
+          key: packages-cache2-{{ checksum ".meteor/versions" }}
+      - run:
+          name: Install npm dependencies
+          command: meteor npm install
+      - save_cache:
+          name: Save NPM Cache
+          key: npm-cache2-{{ checksum "package.json" }}
+          paths:
+            - './node_modules'
+            - '~/.npm'
+            - '~/.cache'
+      - run:
+          name: Print versions
+          command: meteor --version && meteor node -v && meteor npm -v
+      - run:
+          name: Run Linter
+          command: meteor npm run lint
+      - run:
+          name: Run Format checker
+          command: meteor npm run check-format
+      - run:
+          name: Run Test
+          command: meteor npm test
+          environment:
+            TOOL_NODE_FLAGS: --max-old-space-size=4096
+            TEST_CLIENT: 0
+      - save_cache:
+          key: packages-cache2-{{ checksum ".meteor/versions" }}
+          paths:
+            - './.meteor/local/build'
+            - './.meteor/local/bundler-cache'
+            - './.meteor/local/isopacks'
+            - './.meteor/local/plugin-cache'
+  buildStaging:
+    docker:
+      - image: asosnovskiy/docker-meteor:latest
+    working_directory: ~/itgenio
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore NPM Cache
+          key: npm-cache2-{{ checksum "package.json" }}
+      - restore_cache:
+          name: Restore Meteor Package Cache
+          key: packages-cache2-{{ checksum ".meteor/versions" }}
+      - run:
+          name: Install npm dependencies
+          command: meteor npm install
+      - save_cache:
+          name: Save NPM Cache
+          key: npm-cache2-{{ checksum "package.json" }}
+          paths:
+            - './node_modules'
+            - '~/.npm'
+            - '~/.cache'
+      - save_cache:
+          key: packages-cache2-{{ checksum ".meteor/versions" }}
+          paths:
+            - './.meteor/local/build'
+            - './.meteor/local/bundler-cache'
+            - './.meteor/local/isopacks'
+            - './.meteor/local/plugin-cache'
+      - run:
+          name: Run Linter
+          command: meteor npm run lint
+      - run:
+          name: Run Format checker
+          command: meteor npm run check-format
+      - run:
+          name: Create bundle
+          shell: /bin/bash
+          command: |
+            ./deploy/build.sh staging
+      - add_ssh_keys:
+          fingerprints:
+            - '56:9c:43:95:18:bd:39:2a:f3:e0:91:4e:52:06:53:4e'
+      - run:
+          name: Keyscan
+          command: ssh-keyscan -H staging.portal.itgen.io >> ~/.ssh/known_hosts
+      - run:
+          name: Deploy build
+          shell: /bin/bash
+          command: |
+            ./deploy/deploy.sh -host root@staging.portal.itgen.io -env staging
+
+workflows:
+  version: 2
+  test-dev:
+    jobs:
+      - testDev:
+          filters:
+            branches:
+              only: develop
+  build-staging-and-approval-deploy:
+    jobs:
+      - hold:
+          type: approval
+          filters:
+            branches:
+              only:
+                - master
+      - buildStaging:
+          requires:
+            - hold

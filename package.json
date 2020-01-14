@@ -1,0 +1,19 @@
+{
+  "name": "test-repo",
+  "private": true,
+  "version": "0.0.1",
+  "meteor": {
+    "mainModule": {
+      "client": "imports/startup/client/index.js",
+      "server": "imports/startup/server/index.js"
+    }
+  },
+  "dependencies": {
+    "@babel/runtime": "7.7.2",
+    "axios": "0.19.0",
+    "meteor-node-stubs": "1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "3.7.4"
+  }
+}

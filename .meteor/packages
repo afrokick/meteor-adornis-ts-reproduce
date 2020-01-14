@@ -1,0 +1,3 @@
+meteor-base@1.4.0             # Packages every Meteor app needs to have
+ecmascript@0.13.2              # Enable ECMAScript2015+ syntax in app code
+adornis:typescript
