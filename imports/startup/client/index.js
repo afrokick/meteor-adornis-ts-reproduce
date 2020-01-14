@@ -1,1 +1,1 @@
-import '../../services/client/chat';
+import './work';
